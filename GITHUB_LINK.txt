@@ -1,0 +1,12 @@
+Food Delivery AI Prediction Project - GitHub Repository Link
+
+Repository URL: https://github.com/deepikadeepu18122004-collab/Food-Delivery-AI-Prediction-Project.git
+
+This project uses machine learning to predict food delivery times based on various factors such as:
+- Weather conditions
+- Traffic conditions
+- Vehicle type
+- Delivery distance
+- Restaurant type
+
+For more information, please visit the repository at the link above.

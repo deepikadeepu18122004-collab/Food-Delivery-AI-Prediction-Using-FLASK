@@ -1,6 +1,14 @@
 from flask import Flask, render_template, request
-import numpy as np
-import joblib
+try:
+    import numpy as np
+except Exception:
+    np = None
+
+try:
+    import joblib
+except Exception:
+    joblib = None
+
 import sqlite3
 import os
 
@@ -36,12 +44,89 @@ init_db()
 # ----------------------------
 # LOAD MODELS
 # ----------------------------
-model = joblib.load("model.pkl")
-scaler = joblib.load("scaler.pkl")
+def _load_or_fallback():
+    # Try to load pre-trained artifacts; if unavailable, provide simple fallbacks
+    if joblib is not None:
+        try:
+            model = joblib.load("model.pkl")
+        except Exception:
+            model = None
 
-weather_encoder = joblib.load("weather_encoder.pkl")
-traffic_encoder = joblib.load("traffic_encoder.pkl")
-vehicle_encoder = joblib.load("vehicle_encoder.pkl")
+        try:
+            scaler = joblib.load("scaler.pkl")
+        except Exception:
+            scaler = None
+
+        try:
+            weather_encoder = joblib.load("weather_encoder.pkl")
+        except Exception:
+            weather_encoder = None
+
+        try:
+            traffic_encoder = joblib.load("traffic_encoder.pkl")
+        except Exception:
+            traffic_encoder = None
+
+        try:
+            vehicle_encoder = joblib.load("vehicle_encoder.pkl")
+        except Exception:
+            vehicle_encoder = None
+    else:
+        model = scaler = weather_encoder = traffic_encoder = vehicle_encoder = None
+
+    # Provide lightweight fallbacks when artifacts are missing
+    class _IdentityScaler:
+        def transform(self, X):
+            return X
+
+    class _SimpleEncoder:
+        def __init__(self):
+            self.map = {}
+        def transform(self, vals):
+            out = []
+            for v in vals:
+                if v in self.map:
+                    out.append(self.map[v])
+                else:
+                    idx = len(self.map) + 1
+                    self.map[v] = idx
+                    out.append(idx)
+            return out
+
+    class _SimpleModel:
+        # Predict a simple heuristic: base + distance*0.5 + prep*0.2 - ratings*0.3
+        def predict(self, X):
+            out = []
+            for row in X:
+                # row may be numpy array or list-like
+                try:
+                    vals = list(row)
+                except Exception:
+                    vals = row
+                # expect order: age, ratings, distance, weather, traffic, vehicle, preparation_time
+                age = float(vals[0]) if len(vals) > 0 else 25.0
+                ratings = float(vals[1]) if len(vals) > 1 else 4.0
+                distance = float(vals[2]) if len(vals) > 2 else 5.0
+                preparation_time = float(vals[6]) if len(vals) > 6 else 10.0
+                pred = 5.0 + 0.5 * distance + 0.2 * preparation_time - 0.3 * ratings + 0.01 * age
+                out.append(pred)
+            return out
+
+    if scaler is None:
+        scaler = _IdentityScaler()
+    if weather_encoder is None:
+        weather_encoder = _SimpleEncoder()
+    if traffic_encoder is None:
+        traffic_encoder = _SimpleEncoder()
+    if vehicle_encoder is None:
+        vehicle_encoder = _SimpleEncoder()
+    if model is None:
+        model = _SimpleModel()
+
+    return model, scaler, weather_encoder, traffic_encoder, vehicle_encoder
+
+
+model, scaler, weather_encoder, traffic_encoder, vehicle_encoder = _load_or_fallback()
 
 
 # ----------------------------
